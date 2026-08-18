@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt # Visualizing the biopotential signals
 import pandas as pd      # Handling clinical metadata and patient labels
 import ast
 from scipy.signal import butter, lfilter, filtfilt, iirnotch
-import scipy.io
+
 
 #list of 12 leads in the standard order
 LEADS = [
@@ -34,11 +34,13 @@ print(df.head())
 
 # ----------------------------
 # Load your single ECG record
+# Note: this is still hardcoded to one demo record, so it does not yet scale
+# to batch analysis across multiple PTB-XL samples.
 # ----------------------------
 
 record = df.iloc[0]
 
-record_path = DATA_PATH / "00001_hr"
+record_path = DATA_PATH / "00001_hr"  # Hardcoded path; should come from metadata.
 
 ecg, info = wfdb.rdsamp(str(record_path))
 
@@ -148,15 +150,33 @@ plt.savefig(
     bbox_inches="tight"
 )
 plt.show()
+# ----------------------------
+# Step 2: Frequency Domain Analysis — Raw Signal
+# going from time domain to frequency domain using Welch's method
+# ----------------------------
+
+# Welch PSD of raw signal
+freqs_welch, psd_raw = signal.welch(lead_II, fs=fs, nperseg=1024)
+
+plt.figure(figsize=(12, 5))
+plt.semilogy(freqs_welch, psd_raw, label="Raw ECG", alpha=0.7)
+plt.xlabel("Frequency (Hz)")
+plt.ylabel("Power (mV²/Hz)")
+plt.title("Power Spectral Density — Raw Signal")
+plt.xlim(0, 150)
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.savefig(ROOT / "ecg_psd_raw.png", dpi=300, bbox_inches="tight")
+plt.show()
 #----------------------------
-#step 2 Signal Processing: Filtering and Noise Reduction
+#step 3 Signal Processing: Filtering and Noise Reduction
 #-----------------------------
 #define a bandpass filter function
 #ecg_signal  = lead_II
-# lowcut = 0.5  # Lower cutoff frequency in Hz
-# highcut = 40.0  # Upper cutoff frequency in Hz
+  # Lower cutoff frequency in Hz
+ # Upper cutoff frequency in Hz
 #sampling rate = info["fs"]  # Sampling rate in Hz
-# order = 2  # Order of the filter
+ # Order of the filter
 #print sampling rate
 print("Sampling rate:", info["fs"])
 def bandPass_filter(ecg, lowcut, highcut, sampling_rate, order=4):
@@ -166,6 +186,10 @@ def bandPass_filter(ecg, lowcut, highcut, sampling_rate, order=4):
     b, a = butter(order, [low, high], btype='band')
     y = filtfilt(b, a, ecg)
     return y
+# ----------------------------
+# R-peak Detection: simplified Pan-Tompkins-style pipeline
+# This is not the full adaptive Pan-Tompkins algorithm yet.
+# ----------------------------
 lowcut = 0.5  # Lower cutoff frequency in Hz
 highcut = 40.0  # Upper cutoff frequency in Hz
 bandpassed_ecg = bandPass_filter(lead_II, lowcut, highcut, info["fs"], order=4) 
@@ -183,6 +207,7 @@ filtered_ecg = notch_filter(
     quality_factor=30
 )
 flat_filtered_ecg = filtered_ecg.flatten()
+
 print("Filtered ECG shape:", flat_filtered_ecg.shape)
 print("Raw min/max:", np.min(lead_II), np.max(lead_II))
 print("Filtered min/max:", np.min(filtered_ecg), np.max(filtered_ecg))
@@ -209,11 +234,112 @@ plt.ylabel("Amplitude (mV)")
 plt.legend()
 plt.grid(True)
 plt.savefig(
-    ROOT / "ecg_leadII_filtered and_raw_time.png",
+    ROOT / "ecg_leadII_filtered_and_raw_time.png",
     dpi=300,
     bbox_inches="tight"
 )
 plt.show()
+# ----------------------------
+# Step 4: Frequency Domain Analysis — Filtered Signal
+# ----------------------------
 
+freqs_welch, psd_filtered = signal.welch(filtered_ecg, fs=fs, nperseg=1024)
+
+# step4a
+# psd only the filtered signal
+plt.figure(figsize=(12, 5))
+plt.semilogy(freqs_welch, psd_filtered, label="Filtered ECG", color="red")
+plt.xlabel("Frequency (Hz)")
+plt.ylabel("Power (mV²/Hz)")
+plt.title("Power Spectral Density — Filtered Signal")
+plt.xlim(0, 150)
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.savefig(ROOT / "ecg_psd_filtered.png", dpi=300, bbox_inches="tight")
+plt.show()
+#step4b
+plt.figure(figsize=(12, 5))
+plt.semilogy(freqs_welch, psd_raw, label="Raw ECG", alpha=0.5)
+plt.semilogy(freqs_welch, psd_filtered, label="Filtered ECG", color="red")
+plt.xlabel("Frequency (Hz)")
+plt.ylabel("Power (mV²/Hz)")
+plt.title("Power Spectral Density — Raw vs Filtered")
+plt.xlim(0, 150)
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.savefig(ROOT / "ecg_psd_comparison.png", dpi=300, bbox_inches="tight")
+plt.show()
+
+# ----------------------------
+# Step 5: Pan-Tompkins R-peak Detection
+# Pan & Tompkins, IEEE TBME, 1985
+# ----------------------------
+
+# Simplification note: this block follows the Pan-Tompkins idea, but it is
+# still a prototype because it uses a fixed initial threshold and a single
+# peak-refinement pass instead of the full adaptive search-back logic.
+
+# Stage 1: Bandpass 5-15 Hz applied to preprocessed signal
+# Isolates QRS energy band, rejects P/T waves and residual noise
+pt_bandpass = bandPass_filter(filtered_ecg, 5.0, 15.0, fs, order=4)
+# Stage 2: Five-point derivative —
+# Stage 2: Five-point derivative (Pan & Tompkins, 1985)
+# y[n] = (1/8)(2x[n] + x[n-1] - x[n-3] - 2x[n-4])
+# Five-point used over two-point for noise robustness
+derivative = np.zeros_like(pt_bandpass)#zero matrix of the same shape as pt_bandpass
+for i in range(4, len(pt_bandpass)):
+    derivative[i] = (1/8) * (
+        2*pt_bandpass[i] + 
+        pt_bandpass[i-1] - 
+        pt_bandpass[i-3] - 
+        2*pt_bandpass[i-4]
+    )
+# Stage 3: Squaring —
+# Emphasizes large differences and makes all values positive
+squared = derivative ** 2
+# Stage 4: Moving Window Integration —
+window_size = int(0.150 * fs)  # 150 ms window
+window = np.ones(window_size) / window_size # matrix of ones divided by window size
+integrated = np.convolve(squared, window, mode='same')# convulution of the squared signal with the moving window
+# Stage 5: Adaptive Thresholding and Peak Detection —
+threshold = 0.15 * np.max(integrated)  
+peaks, _ = signal.find_peaks(
+    integrated,
+    height=threshold,
+    distance=int(0.2*fs)  # 200ms minimum — allows up to 300 bpm
+)
+
+# Refine the candidate peaks back onto the filtered ECG.
+# Without this step, the heart rate would be computed from envelope maxima,
+# not the actual R-peak locations.
+search_window_back = int(0.05 * fs)   # 50ms back
+search_window_fwd = int(0.15 * fs)    # 150ms forward
+
+true_peaks = []
+for p in peaks:
+    start = max(0, p - search_window_back)
+    end = min(len(filtered_ecg), p + search_window_fwd)
+    local_max = start + np.argmax(filtered_ecg[start:end])
+    true_peaks.append(local_max)
+true_peaks = np.array(true_peaks)
+
+# Remove duplicates that might land on same peak
+true_peaks = np.unique(true_peaks)
+# Calculate heart rate from R-R intervals
+rr_intervals = np.diff(true_peaks) / fs  # in seconds
+heart_rate = 60 / np.mean(rr_intervals)  # in bpm
+print(f"Detected {len(true_peaks)} R-peaks")
+print(f"Mean heart rate: {heart_rate:.1f} bpm")
+# Plot detected QRS-peaks
+plt.figure(figsize=(12, 5))
+plt.plot(time, filtered_ecg, label="Filtered ECG", alpha=0.7)
+plt.plot(time[true_peaks], filtered_ecg[true_peaks], "rx", markersize=10, label="R-peaks")
+plt.xlabel("Time (s)")
+plt.ylabel("Amplitude (mV)")
+plt.title("R-peak Detection — Pan-Tompkins")
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.savefig(ROOT / "ecg_rpeaks.png", dpi=300, bbox_inches="tight")
+plt.show()
 
 
