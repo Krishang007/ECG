@@ -4,17 +4,45 @@ This project uses Python to load ECG data, inspect metadata, filter signals, and
 
 ## Environment Setup
 
+Create and activate a project-local virtual environment from the repository root:
+
 ```bash
+python3 -m venv .venv
 source .venv/bin/activate
 python --version
 which python
-pip install -r requirements.txt
+python -m pip install --upgrade pip
 ```
 
-If you do not have a requirements file yet, install the core libraries directly:
+Install the runtime and test dependencies:
 
 ```bash
-pip install numpy pandas scipy matplotlib wfdb
+python -m pip install numpy pandas scipy matplotlib wfdb pytest
+```
+
+If `requirements.txt` exists, install from it instead:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Verify that the active interpreter can import the required packages:
+
+```bash
+python -c "import numpy, pandas, scipy, matplotlib, wfdb, pytest; print('Dependencies OK')"
+```
+
+If pytest reports `No module named pytest`, install it into the same interpreter used to run the tests:
+
+```bash
+python -m pip install pytest
+python -m pytest -q
+```
+
+To leave the virtual environment:
+
+```bash
+deactivate
 ```
 
 ## Run the Project
@@ -28,6 +56,81 @@ If you want to run the script with the project virtual environment explicitly:
 ```bash
 .venv/bin/python SRC/main.py
 ```
+
+The main script reads the first PTB-XL metadata row, analyzes Lead II, detects QRS peaks, and saves plots in the repository root. Run commands from the repository root so the relative data paths resolve correctly.
+
+## Run Tests
+
+Run the complete test suite with quiet output:
+
+```bash
+python -m pytest -q
+```
+
+Run one test file or one test function:
+
+```bash
+python -m pytest -q tests/test_pan_tompkins.py
+python -m pytest -q tests/test_pan_tompkins.py::test_pan_tompkins_first_record
+```
+
+Show detailed output and stop at the first failure:
+
+```bash
+python -m pytest -vv -x
+```
+
+Collect tests without executing them:
+
+```bash
+python -m pytest --collect-only -q
+```
+
+Note: `tests/test_qrs_plot.py` is an interactive plotting script, not a conventional assertion-based test. Run it directly when visual inspection is needed:
+
+```bash
+python tests/test_qrs_plot.py
+```
+
+## Validation Scripts
+
+Run batch validation across multiple records:
+
+```bash
+python SRC/batch_validation.py
+```
+
+Generate validation plots for selected records:
+
+```bash
+python SRC/visual_validation.py
+```
+
+Generated CSV and image files are written under `results/` by the validation scripts.
+
+## Useful Diagnostics
+
+Confirm the current directory and Python executable:
+
+```bash
+pwd
+which python
+python --version
+```
+
+Check that the local PTB-XL files exist:
+
+```bash
+ls data/00001_hr.hea data/00001_hr.dat data/ptbxl_database.csv
+```
+
+Check installed package versions:
+
+```bash
+python -m pip show pytest numpy pandas scipy matplotlib wfdb
+```
+
+If imports fail, activate `.venv` again and install packages using `python -m pip`, not a different system `pip` command. If data-loading fails, run the command from the repository root and verify that the PTB-XL files are present.
 
 ## Core Libraries Used in This Project
 
@@ -139,7 +242,8 @@ pip freeze > requirements.txt
 
 ```bash
 python -m pip install --upgrade pip
-python -m pip install numpy pandas scipy matplotlib wfdb
+python -m pip install numpy pandas scipy matplotlib wfdb pytest
+python -m pip freeze > requirements.txt
 ```
 
 ```bash
