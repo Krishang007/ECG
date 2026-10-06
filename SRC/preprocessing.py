@@ -403,18 +403,34 @@ if __name__ == "__main__":
         "chebyshev2",
     ]
 
+    results = {}
+
     for method in filter_methods:
         filtered = preprocess_ecg(
             lead_ii,
             sampling_rate=sampling_rate,
             method=method,
         )
+        results[method] = filtered
 
         print(f"\nMethod: {method}")
         print(f"Shape: {filtered.shape}")
         print(f"Finite: {np.all(np.isfinite(filtered))}")
         print(f"Minimum: {np.min(filtered):.6f}")
         print(f"Maximum: {np.max(filtered):.6f}")
+        print(f"Mean: {np.mean(filtered):.6f}")
+        print(f"Standard deviation: {np.std(filtered):.6f}")
+
+    for method, filtered in results.items():
+        assert filtered.shape == lead_ii.shape, (
+            f"{method} changed the signal shape: "
+            f"{filtered.shape} != {lead_ii.shape}"
+        )
+        assert np.all(np.isfinite(filtered)), (
+            f"{method} produced NaN or infinite values"
+        )
+
+    print("\nALL FILTER TESTS PASSED")
 
     # --------------------------------------------------------
     # Preprocess Lead II

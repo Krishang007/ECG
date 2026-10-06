@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+physionet.org/
+data/
+
+# Personal research and learning notes (local only)
+/notes/
+# Also ignore original names if recreated
+/ResearchNotes.md
+/cario.md
+/code_logic_errors.md
+/commad cheat cheat.md
+/notes.md
+/refrences.md

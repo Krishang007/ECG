@@ -10,76 +10,80 @@ from data_loader import load_metadata, load_record
 from qrs_detection import pan_tompkins
 
 
-# --------------------------------------------------
-# Paths
-# --------------------------------------------------
+def main():
+    # --------------------------------------------------
+    # Paths
+    # --------------------------------------------------
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-DATA_PATH = (
-    PROJECT_ROOT
-    / "physionet.org"
-    / "files"
-    / "ptb-xl"
-    / "1.0.3"
-)
-
-
-# --------------------------------------------------
-# Load first PTB-XL record
-# --------------------------------------------------
-
-df = load_metadata()
-
-record_path = df.iloc[0]["filename_lr"]
-full_path = DATA_PATH / record_path
-
-ecg, info = load_record(full_path)
-
-fs = info["fs"]
-
-# Lead II
-lead_ii = ecg[:, 1]
-
-# Time axis
-time = range(len(lead_ii))
-time = [t / fs for t in time]
+    DATA_PATH = (
+        PROJECT_ROOT
+        / "physionet.org"
+        / "files"
+        / "ptb-xl"
+        / "1.0.3"
+    )
 
 
-# --------------------------------------------------
-# Detect R-peaks
-# --------------------------------------------------
+    # --------------------------------------------------
+    # Load first PTB-XL record
+    # --------------------------------------------------
 
-r_peaks = pan_tompkins(lead_ii, fs)
+    df = load_metadata()
 
-peak_times = r_peaks / fs
+    record_path = df.iloc[0]["filename_lr"]
+    full_path = DATA_PATH / record_path
+
+    ecg, info = load_record(full_path)
+
+    fs = info["fs"]
+
+    # Lead II
+    lead_ii = ecg[:, 1]
+
+    # Time axis
+    time = range(len(lead_ii))
+    time = [t / fs for t in time]
 
 
-# --------------------------------------------------
-# Plot
-# --------------------------------------------------
+    # --------------------------------------------------
+    # Detect R-peaks
+    # --------------------------------------------------
 
-plt.figure(figsize=(12, 5))
+    r_peaks = pan_tompkins(lead_ii, fs)
 
-plt.plot(
-    time,
-    lead_ii,
-    label="Lead II"
-)
+    peak_times = r_peaks / fs
 
-plt.scatter(
-    peak_times,
-    lead_ii[r_peaks],
-    marker="o",
-    label="Detected R-peaks"
-)
 
-plt.xlabel("Time (seconds)")
-plt.ylabel("Amplitude (mV)")
-plt.title("PTB-XL Lead II — Pan-Tompkins R-Peak Detection")
+    # --------------------------------------------------
+    # Plot
+    # --------------------------------------------------
 
-plt.legend()
-plt.grid(True)
+    plt.figure(figsize=(12, 5))
 
-plt.tight_layout()
-plt.show()
+    plt.plot(
+        time,
+        lead_ii,
+        label="Lead II"
+    )
+
+    plt.scatter(
+        peak_times,
+        lead_ii[r_peaks],
+        marker="o",
+        label="Detected R-peaks"
+    )
+
+    plt.xlabel("Time (seconds)")
+    plt.ylabel("Amplitude (mV)")
+    plt.title("PTB-XL Lead II — Pan-Tompkins R-Peak Detection")
+
+    plt.legend()
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+if __name__ == "__main__":
+    main()

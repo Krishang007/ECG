@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 
 from data_loader import get_lead, load_metadata, load_record
-from preprocessing import bandpass_filter
 from qrs_detection import pan_tompkins
 
 
@@ -22,6 +21,13 @@ DATA_PATH = (
     / "1.0.3"
 )
 
+FILTER_METHODS = [
+    "raw",
+    "butterworth",
+    "chebyshev1",
+    "chebyshev2",
+]
+
 
 # ============================================================
 # TEST MULTIPLE RECORDS
@@ -30,6 +36,9 @@ DATA_PATH = (
 def test_records(num_records=20):
 
     df = load_metadata()
+
+    if not 1 <= num_records <= len(df):
+        raise ValueError(f"num_records must be between 1 and {len(df)}")
 
     results = []
 
@@ -64,65 +73,34 @@ def test_records(num_records=20):
                 "II"
             )
 
-            # ------------------------------------------------
-            # Bandpass filtering
-            # ------------------------------------------------
-
-            filtered_ecg = bandpass_filter(
-                lead_II,
-                lowcut=0.5,
-                highcut=40.0,
-                sampling_rate=fs,
-                order=4,
-            )
-
-            # ------------------------------------------------
-            # Pan-Tompkins
-            # ------------------------------------------------
-
-            r_peaks = pan_tompkins(
-                filtered_ecg,
-                sampling_rate=fs
-            )
-
-            # ------------------------------------------------
-            # RR interval analysis
-            # ------------------------------------------------
-
-            if len(r_peaks) >= 2:
-
-                rr_intervals = (
-                    np.diff(r_peaks) / fs
+            for method in FILTER_METHODS:
+                r_peaks = pan_tompkins(
+                    lead_II,
+                    sampling_rate=fs,
+                    filter_method=method,
                 )
+                rr_intervals = np.diff(r_peaks) / fs
 
-                mean_rr = np.mean(
-                    rr_intervals
-                )
+                if len(rr_intervals):
+                    mean_rr = np.mean(rr_intervals)
+                    rr_std = np.std(rr_intervals)
+                    heart_rate = 60.0 / mean_rr
+                    min_rr = np.min(rr_intervals)
+                    max_rr = np.max(rr_intervals)
+                    invalid_rr_count = np.sum(
+                        (rr_intervals < 0.30)
+                        | (rr_intervals > 2.00)
+                    )
+                else:
+                    mean_rr = np.nan
+                    rr_std = np.nan
+                    heart_rate = np.nan
+                    min_rr = np.nan
+                    max_rr = np.nan
+                    invalid_rr_count = 0
 
-                heart_rate = (
-                    60.0 / mean_rr
-                )
-
-                min_rr = np.min(
-                    rr_intervals
-                )
-
-                max_rr = np.max(
-                    rr_intervals
-                )
-
-            else:
-
-                mean_rr = np.nan
-                heart_rate = np.nan
-                min_rr = np.nan
-                max_rr = np.nan
-
-            # ------------------------------------------------
-            # Store metadata + DSP results
-            # ------------------------------------------------
-
-            results.append({
+                # Store metadata and one row per filter method.
+                results.append({
 
                 # ==============================
                 # PTB-XL METADATA
@@ -181,9 +159,10 @@ def test_records(num_records=20):
                     record["filename_hr"],
 
                 # ==============================
-                # DSP RESULTS
+                # FILTER AND DSP RESULTS
                 # ==============================
 
+                "filter_method": method,
                 "sampling_rate": fs,
 
                 "r_peaks":
@@ -191,6 +170,9 @@ def test_records(num_records=20):
 
                 "mean_rr":
                     mean_rr,
+
+                "rr_std":
+                    rr_std,
 
                 "heart_rate":
                     heart_rate,
@@ -201,31 +183,32 @@ def test_records(num_records=20):
                 "max_rr":
                     max_rr,
 
+                "invalid_rr_count":
+                    int(invalid_rr_count),
+
                 "status":
                     "SUCCESS",
-            })
+                })
 
-            # ------------------------------------------------
-            # Progress
-            # ------------------------------------------------
+                # ------------------------------------------------
+                # Progress
+                # ------------------------------------------------
 
-            if not np.isnan(heart_rate):
-
-                print(
-                    f"[{index + 1:02d}/{num_records}] "
-                    f"ECG {record['ecg_id']} | "
-                    f"R-peaks: {len(r_peaks):2d} | "
-                    f"HR: {heart_rate:.1f} BPM"
-                )
-
-            else:
-
-                print(
-                    f"[{index + 1:02d}/{num_records}] "
-                    f"ECG {record['ecg_id']} | "
-                    f"R-peaks: {len(r_peaks):2d} | "
-                    f"HR: N/A"
-                )
+                if not np.isnan(heart_rate):
+                    print(
+                        f"[{index + 1:02d}/{num_records}] "
+                        f"ECG {record['ecg_id']} | "
+                        f"{method} | "
+                        f"R-peaks: {len(r_peaks):2d} | "
+                        f"HR: {heart_rate:.4f} BPM"
+                    )
+                else:
+                    print(
+                        f"[{index + 1:02d}/{num_records}] "
+                        f"ECG {record['ecg_id']} | "
+                        f"{method} | "
+                        f"R-peaks: {len(r_peaks):2d} | HR: N/A"
+                    )
 
         except Exception as error:
 
@@ -310,9 +293,13 @@ def test_records(num_records=20):
 
 if __name__ == "__main__":
 
-    results = test_records(
-        num_records=20
-    )
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Compare ECG preprocessing methods.")
+    parser.add_argument("--num-records", type=int, default=20)
+    parser.add_argument("--output", type=Path, default=ROOT / "results" / "ptbxl_batch_validation.csv")
+    args = parser.parse_args()
+    results = test_records(num_records=args.num_records)
 
     # ========================================================
     # VALIDATION RESULTS
@@ -355,7 +342,11 @@ if __name__ == "__main__":
     print("=" * 70)
 
     print(
-        f"Records tested: {len(results)}"
+        f"Method evaluations: {len(results)}"
+    )
+
+    print(
+        f"Unique records:    {results['ecg_id'].nunique()}"
     )
 
     print(
@@ -391,11 +382,7 @@ if __name__ == "__main__":
     # SAVE CSV
     # ========================================================
 
-    output_file = (
-        ROOT
-        / "results"
-        / "ptbxl_batch_validation.csv"
-    )
+    output_file = args.output
 
     output_file.parent.mkdir(
         parents=True,

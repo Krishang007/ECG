@@ -19,8 +19,10 @@ def plot_12_leads(ecg, fs, title="12 Lead ECG", filename="ecg_12Leads.png"):
 
     plt.xlabel("Time (seconds)")
     plt.suptitle(title)
-    plt.savefig(ROOT / filename, dpi=300, bbox_inches="tight")
-    plt.show()
+    output_path = ROOT / "results" / "figures" / filename
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
 
 
 def plot_lead(ecg_lead, fs, title="Lead ECG", filename="ecg_lead.png"):
@@ -32,8 +34,10 @@ def plot_lead(ecg_lead, fs, title="Lead ECG", filename="ecg_lead.png"):
     plt.ylabel("Amplitude (mV)")
     plt.title(title)
     plt.grid(True, alpha=0.3)
-    plt.savefig(ROOT / filename, dpi=300, bbox_inches="tight")
-    plt.show()
+    output_path = ROOT / "results" / "figures" / filename
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
 
 
 def plot_psd(freqs, psd_list, labels, title="Power Spectral Density", filename="ecg_psd.png", colors=None, alphas=None):
@@ -54,11 +58,13 @@ def plot_psd(freqs, psd_list, labels, title="Power Spectral Density", filename="
     plt.xlabel("Frequency (Hz)")
     plt.ylabel("Power (mV²/Hz)")
     plt.title(title)
-    plt.xlim(0, 150)
+    plt.xlim(0, float(np.max(freqs)))
     plt.legend()
     plt.grid(True, alpha=0.3)
-    plt.savefig(ROOT / filename, dpi=300, bbox_inches="tight")
-    plt.show()
+    output_path = ROOT / "results" / "figures" / filename
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
 
 
 def plot_filtered_signal(raw_ecg, filtered_ecg, fs, title="Filtered vs Raw ECG", filename="ecg_filtered.png"):
@@ -72,20 +78,24 @@ def plot_filtered_signal(raw_ecg, filtered_ecg, fs, title="Filtered vs Raw ECG",
     plt.title(title)
     plt.legend()
     plt.grid(True)
-    plt.savefig(ROOT / filename, dpi=300, bbox_inches="tight")
-    plt.show()
+    output_path = ROOT / "results" / "figures" / filename
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
 
 
 def plot_r_peaks(ecg, r_peaks, fs, title="R-peak Detection", filename="ecg_rpeaks.png"):
     """Plot the ECG signal with detected R-peaks marked."""
     time = np.arange(len(ecg)) / fs
     plt.figure(figsize=(12, 5))
-    plt.plot(time, ecg, label="Filtered ECG", alpha=0.7)
+    plt.plot(time, ecg, label="ECG", alpha=0.7)
     plt.plot(time[r_peaks], ecg[r_peaks], "rx", markersize=10, label="R-peaks")
     plt.xlabel("Time (s)")
     plt.ylabel("Amplitude (mV)")
     plt.title(title)
     plt.legend()
     plt.grid(True, alpha=0.3)
-    plt.savefig(ROOT / filename, dpi=300, bbox_inches="tight")
-    plt.show()
+    output_path = ROOT / "results" / "figures" / filename
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close()
