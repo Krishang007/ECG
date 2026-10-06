@@ -57,7 +57,10 @@ This generates `results/SUMMARY.md` and `results/filter_summary.csv` from the in
 
 ### Reproduce the waveform analysis
 
-Obtain PTB-XL 1.0.3 from PhysioNet, observing its dataset license and attribution requirements. Put `ptbxl_database.csv` and the required `records100` waveform files in this layout:
+I used the PTB-XL 1.0.3 dataset from PhysioNet and downloaded the waveform files from:
+https://physionet.org/content/ptb-xl/1.0.3/records500/00000/#files-panel
+
+Obtain PTB-XL 1.0.3 from PhysioNet, observing its dataset license and attribution requirements. Put `ptbxl_database.csv` and the required waveform files in this layout:
 
 ```text
 physionet.org/files/ptb-xl/1.0.3/
