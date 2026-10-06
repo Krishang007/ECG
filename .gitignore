@@ -15,11 +15,5 @@ data/
 /commad cheat cheat.md
 /notes.md
 /refrences.md
+/docs/
 
-.DS_Store
-__pycache__/
-*.pyc
-
-.DS_Store
-__pycache__/
-*.pyc
